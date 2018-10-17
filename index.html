@@ -1,0 +1,143 @@
+<html>
+<meta http-equiv="Cache-Control" content="no-store" />
+<head>
+<meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+	
+    <title>Stocks</title>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js" type="text/javascript"></script>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" crossorigin="anonymous"></script>
+
+	<script src="https://connectors.tableau.com/libs/tableauwdc-2.3.latest.js" type="text/javascript"></script>
+	<script type="text/javascript">
+
+		function log(message) {
+			console.log(message);
+			tableau.log(message);
+		}
+
+		const jq = window.jQuery;
+
+		const newsSchema = {
+			id: "news",
+			columns: [{
+	    		id: "stock_symbol",
+	    		dataType: tableau.dataTypeEnum.string
+	    	},{
+	    		id: "datetime",
+	    		dataType: tableau.dataTypeEnum.datetime
+	    	},{
+	    		id: "headline",
+	    		dataType: tableau.dataTypeEnum.string
+	    	},{
+	    		id: "source",
+	    		dataType: tableau.dataTypeEnum.string
+	    	},{
+	    		id: "url",
+	    		dataType: tableau.dataTypeEnum.string
+	    	},{
+	    		id: "image",
+	    		dataType: tableau.dataTypeEnum.string
+	    	}]
+	    };
+
+		const stockHistorySchema = {
+			id: "stock_history",
+			columns: [{
+	    		id: "stock_symbol",
+	    		dataType: tableau.dataTypeEnum.string
+	    	},{
+	    		id: "date",
+	    		dataType: tableau.dataTypeEnum.date
+	    	},{
+	    		id: "label",
+	    		dataType: tableau.dataTypeEnum.string
+	    	},{
+	    		id: "open",
+	    		dataType: tableau.dataTypeEnum.float
+	    	},{
+	    		id: "high",
+	    		dataType: tableau.dataTypeEnum.float
+	    	},{
+	    		id: "low",
+	    		dataType: tableau.dataTypeEnum.float
+	    	},{
+	    		id: "close",
+	    		dataType: tableau.dataTypeEnum.float
+	    	},{
+	    		id: "volume",
+	    		dataType: tableau.dataTypeEnum.int
+	    	},{
+	    		id: "change",
+	    		dataType: tableau.dataTypeEnum.float
+	    	},{
+	    		id: "changePercent",
+	    		dataType: tableau.dataTypeEnum.float
+	    	}]
+	    };
+
+	    function dataForStock(symbol) {
+			return jq.getJSON("https://api.iextrading.com/1.0/stock/" + symbol + "/batch?types=quote,news,chart&range=6m");
+	    };
+
+		const conn = tableau.makeConnector();
+	    conn.getSchema = function(schemaCallback) {
+	    	schemaCallback([newsSchema, stockHistorySchema]);
+	    };
+	    var dataPromise;
+	    conn.getData = function(table, dataCallback) {
+	    	const stockSymbol = JSON.parse(tableau.connectionData).stockSymbol;
+	    	if (!dataPromise) {
+	    		dataPromise = dataForStock(stockSymbol);
+	    	}
+
+	    	switch (table.tableInfo.id) {
+	    	case "news":
+    			dataPromise.then(function(data) {
+    				for (item in data.news) {
+    					item.stock_symbol = stockSymbol;
+    				}
+    				table.appendRows(data.news);
+    				dataCallback();
+    			});
+    			break;
+    		case "stock_history":
+    			dataPromise.then(function(data) {
+    				for (item in data.chart) {
+    					item.stock_symbol = stockSymbol;
+    				}
+    				table.appendRows(data.chart);
+    				dataCallback();
+    			});
+    			break;
+	    	}
+	    };
+	    tableau.registerConnector(conn);
+
+	    function onStockClick(e) {
+	    	const stockSymbol = jq("#symbol-input").val();
+	    	tableau.connectionData = JSON.stringify({
+	    		stockSymbol: stockSymbol
+	    	});
+		    tableau.connectionName = "Stocks";
+		    tableau.submit();
+	    }
+
+	    jq(document).ready(function() {
+		    jq("#load-button").click(onStockClick);
+		});
+	 
+	</script>
+</head>
+<body>
+
+	<input id="symbol-input" type="text" value="" placeholder="Enter a stock symbol" />
+	<button id="load-button" type="button">Load</button>
+
+</body>
+</html>
